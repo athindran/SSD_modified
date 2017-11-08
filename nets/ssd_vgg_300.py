@@ -78,6 +78,74 @@ SSDParams = namedtuple('SSDParameters', ['img_shape',
                                          'prior_scaling'
                                          ])
 
+def largeparams():
+  default_params = SSDParams(
+        img_shape=(300,300),
+        num_classes=21,
+        no_annotation_label=21,
+        feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11'],
+        feat_shapes=[(38, 38), (19, 19), (10, 10), (5, 5), (3, 3), (1, 1)],
+        anchor_size_bounds=[0.15, 0.90],
+       # anchor_size_bounds=[0.20, 0.90],
+        anchor_sizes=[(21., 45.),
+                      (45., 99.),
+                      (99., 153.),
+                      (153., 207.),
+                      (207., 261.),
+                      (261., 315.)],
+        # anchor_sizes=[(30., 60.),
+        #               (60., 111.),
+        #               (111., 162.),
+        #               (162., 213.),
+        #               (213., 264.),
+        #               (264., 315.)],
+        anchor_ratios=[[2, .5],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5],
+                       [2, .5]],
+        anchor_steps=[8, 16, 32, 64, 100, 300],
+        anchor_offset=0.5,
+        normalizations=[20, -1, -1, -1, -1, -1],
+        prior_scaling=[0.1, 0.1, 0.2, 0.2]
+        )
+  return default_params
+
+def foveaparams():
+  default_params = SSDParams(
+        img_shape=(75,75),
+        num_classes=21,
+        no_annotation_label=21,
+        feat_layers=['block4', 'block7', 'block8', 'block9', 'dummy', 'dummy'],
+        feat_shapes=[ (10, 10), (5, 5), (3, 3), (1, 1),(1,1),(1,1)],
+        anchor_size_bounds=[0.15, 0.90],
+#        # anchor_size_bounds=[0.20, 0.90],
+        anchor_sizes=[(21., 45.),
+                      (45., 99.),
+                      (99., 153.),
+                      (153., 207.),
+                      (207., 261.),
+                      (261., 315.)],
+        # anchor_sizes=[(30., 60.),
+        #               (60., 111.),
+        #               (111., 162.),
+        #               (162., 213.),
+        #               (213., 264.),
+        #               (264., 315.)],
+        anchor_ratios=[[2, .5],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5],
+                       [2, .5]],
+        anchor_steps=[8, 16, 32, 64, 100, 300],
+        anchor_offset=0.5,
+        normalizations=[20, -1, -1, -1, -1, -1],
+        prior_scaling=[0.1, 0.1, 0.2, 0.2]
+        )
+  return default_params
+
 
 class SSDNet(object):
     """Implementation of the SSD VGG-based 300 network.
@@ -127,10 +195,14 @@ class SSDNet(object):
         """Init the SSD net with some parameters. Use the default ones
         if none provided.
         """
-        if isinstance(params, SSDParams):
-            self.params = params
-        else:
-            self.params = SSDNet.default_params
+#        if isinstance(params, SSDParams):
+        if params:
+          self.params = params
+#        else:
+#            self.params = SSDNet.default_params
+        print(self.params)
+        print(params)
+
 
     # ======================================================================= #
     def net(self, inputs,
@@ -139,9 +211,10 @@ class SSDNet(object):
             dropout_keep_prob=0.5,
             prediction_fn=slim.softmax,
             reuse=None,
-            scope='ssd_300_vgg'):
+            scope='ssd_300_vgg', large=True):
         """SSD network definition.
         """
+        #self.params = tf.cond(large, largeparams, foveaparams)
         r = ssd_net(inputs,
                     num_classes=self.params.num_classes,
                     feat_layers=self.params.feat_layers,
@@ -152,7 +225,7 @@ class SSDNet(object):
                     dropout_keep_prob=dropout_keep_prob,
                     prediction_fn=prediction_fn,
                     reuse=reuse,
-                    scope=scope)
+                    scope=scope, large=large)
         # Update feature shapes (try at least!)
         if update_feat_shapes:
             shapes = ssd_feat_shapes_from_net(r[0], self.params.feat_shapes)
@@ -428,6 +501,84 @@ def ssd_multibox_layer(inputs,
                           tensor_shape(cls_pred, 4)[:-1]+[num_anchors, num_classes])
     return cls_pred, loc_pred
 
+def largenetwork(net,end_point,end_points):
+  print('Large network')
+  with tf.variable_scope(end_point):
+    net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+    net = custom_layers.pad2d(net, pad=(1, 1))
+    net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
+  end_points[end_point] = net
+  end_point = 'block10'
+  print(net)
+  with tf.variable_scope(end_point):
+    net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+    net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+  end_points[end_point] = net
+  end_point = 'block11'
+  print(net)
+  with tf.variable_scope(end_point):
+    net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+    net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
+  end_points[end_point] = net
+  print(net)
+  return end_points
+
+def foveanetwork(net,end_point,end_points):
+  with tf.variable_scope(end_point):
+    print("Fovea Network")
+    #scope.reuse_variables()    
+    net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
+    #net = custom_layers.pad2d(net, pad=(1, 1))
+    net = slim.conv2d(net, 256, [3, 3], stride=1, scope='conv3x3', padding='VALID')
+  end_points[end_point] = net
+  #end_point = 'block10'
+  print(net)
+  end_points['block10'] = net
+  end_points['block11'] = net
+  return end_points 
+
+def find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn):
+    predictions = [[]*50]
+    logits = [[]*50]
+    localisations = [[]*50]
+    feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11']
+    for i, layer in enumerate(feat_layers):
+      with tf.variable_scope(layer+'_box'):
+        p, l = ssd_multibox_layer(end_points[layer],
+                                 num_classes,
+                                 anchor_sizes[i],
+                                 anchor_ratios[i],
+                                 normalizations[i])
+      print(p)
+      print(l)
+      predictions = prediction_fn(p)
+      logits.append(p)
+      localisations.append(l)
+
+    return predictions, localisations, logits, end_points
+
+
+def find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn):
+    predictions = []
+    logits = []
+    localisations = []
+    feat_layers=['block4', 'block7', 'block8', 'block9']
+    for i, layer in enumerate(feat_layers):
+      with tf.variable_scope(layer+'_box'):
+        p, l = ssd_multibox_layer(end_points[layer],
+                                 num_classes,
+                                 anchor_sizes[i],
+                                 anchor_ratios[i],
+                                 normalizations[i])
+        print p,l
+      predictions.append(prediction_fn(p))
+      logits.append(p)
+      localisations.append(l)
+
+    return predictions, localisations, logits, end_points
+   
+def dummy_predictions():
+   return [],[]
 
 def ssd_net(inputs,
             num_classes=SSDNet.default_params.num_classes,
@@ -439,7 +590,7 @@ def ssd_net(inputs,
             dropout_keep_prob=0.5,
             prediction_fn=slim.softmax,
             reuse=None,
-            scope='ssd_300_vgg'):
+            scope='ssd_300_vgg',large=True):
     """SSD net definition.
     """
     # if data_format == 'NCHW':
@@ -462,6 +613,7 @@ def ssd_net(inputs,
         net = slim.max_pool2d(net, [2, 2], scope='pool3')
         # Block 4.
         net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
+        print(net) 
         end_points['block4'] = net
         net = slim.max_pool2d(net, [2, 2], scope='pool4')
         # Block 5.
@@ -476,6 +628,7 @@ def ssd_net(inputs,
         net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
         # Block 7: 1x1 conv. Because the fuck.
         net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
+        print(net)
         end_points['block7'] = net
         net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
 
@@ -486,39 +639,13 @@ def ssd_net(inputs,
             net = custom_layers.pad2d(net, pad=(1, 1))
             net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')
         end_points[end_point] = net
+        print(net)
         end_point = 'block9'
-        with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-            net = custom_layers.pad2d(net, pad=(1, 1))
-            net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
-        end_points[end_point] = net
-        end_point = 'block10'
-        with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
-        end_points[end_point] = net
-        end_point = 'block11'
-        with tf.variable_scope(end_point):
-            net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-            net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
-        end_points[end_point] = net
-
-        # Prediction and localisations layers.
-        predictions = []
-        logits = []
-        localisations = []
-        for i, layer in enumerate(feat_layers):
-            with tf.variable_scope(layer + '_box'):
-                p, l = ssd_multibox_layer(end_points[layer],
-                                          num_classes,
-                                          anchor_sizes[i],
-                                          anchor_ratios[i],
-                                          normalizations[i])
-            predictions.append(prediction_fn(p))
-            logits.append(p)
-            localisations.append(l)
-
-        return predictions, localisations, logits, end_points
+        end_points = tf.cond(large, lambda: largenetwork(net, end_point,end_points), lambda: foveanetwork(net, end_point,end_points))
+       # Prediction and localisations layers.
+               #print(feat_layers)
+        return tf.cond(large, lambda: find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn),lambda: find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn))        
+            
 ssd_net.default_image_size = 300
 
 
