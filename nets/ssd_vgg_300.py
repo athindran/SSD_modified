@@ -200,8 +200,8 @@ class SSDNet(object):
           self.params = params
 #        else:
 #            self.params = SSDNet.default_params
-        print(self.params)
-        print(params)
+        #print(self.params)
+        #print(params)
 
 
     # ======================================================================= #
@@ -230,6 +230,7 @@ class SSDNet(object):
         if update_feat_shapes:
             shapes = ssd_feat_shapes_from_net(r[0], self.params.feat_shapes)
             self.params = self.params._replace(feat_shapes=shapes)
+        print(self.params)
         return r
 
     def arg_scope(self, weight_decay=0.0005, data_format='NHWC'):
@@ -538,9 +539,10 @@ def foveanetwork(net,end_point,end_points):
   return end_points 
 
 def find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn):
-    predictions = [[]*50]
-    logits = [[]*50]
-    localisations = [[]*50]
+    predictions = []
+    logits = []
+    localisations = []
+    ndetections = 0
     feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11']
     for i, layer in enumerate(feat_layers):
       with tf.variable_scope(layer+'_box'):
@@ -551,11 +553,11 @@ def find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,nor
                                  normalizations[i])
       print(p)
       print(l)
-      predictions = prediction_fn(p)
+      predictions.append(prediction_fn(p))
       logits.append(p)
       localisations.append(l)
 
-    return predictions, localisations, logits, end_points
+    return predictions, localisations, logits
 
 
 def find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn):
@@ -570,12 +572,18 @@ def find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,nor
                                  anchor_sizes[i],
                                  anchor_ratios[i],
                                  normalizations[i])
-        print p,l
+        print(p)
+        print(l)
       predictions.append(prediction_fn(p))
       logits.append(p)
       localisations.append(l)
-
-    return predictions, localisations, logits, end_points
+    predictions.append(predictions[0])
+    predictions.append(predictions[0])
+    logits.append(logits[0])
+    logits.append(logits[0])
+    localisations.append(localisations[0])
+    localisations.append(localisations[0])
+    return predictions, localisations, logits
    
 def dummy_predictions():
    return [],[]
@@ -644,8 +652,10 @@ def ssd_net(inputs,
         end_points = tf.cond(large, lambda: largenetwork(net, end_point,end_points), lambda: foveanetwork(net, end_point,end_points))
        # Prediction and localisations layers.
                #print(feat_layers)
-        return tf.cond(large, lambda: find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn),lambda: find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn))        
-            
+        find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn)
+        find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn)
+        predictions,localisations,logits = tf.cond(large, lambda: find_predictions_large(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn),lambda: find_predictions_fovea(end_points,num_classes,anchor_sizes,anchor_ratios,normalizations,prediction_fn))        
+        return predictions,localisations,logits,end_points
 ssd_net.default_image_size = 300
 
 

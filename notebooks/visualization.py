@@ -111,4 +111,4 @@ def plt_bboxes(img, classes, scores, bboxes, figsize=(10,10), linewidth=1.5):
                            '{:s} | {:.3f}'.format(class_name, score),
                            bbox=dict(facecolor=colors[cls_id], alpha=0.5),
                            fontsize=12, color='white')
-    plt.show()
+    plt.show() 

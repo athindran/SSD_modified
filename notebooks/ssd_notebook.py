@@ -33,6 +33,7 @@ sys.path.append('../')
 
 from nets import ssd_vgg_300, ssd_common, np_methods
 import nets
+
 from preprocessing import ssd_vgg_preprocessing
 import visualization
 
@@ -71,7 +72,7 @@ SSDParams = namedtuple('SSDParameters', ['img_shape',
 # Input placeholder.
 net_shape = (300,300)
 default_params = SSDParams(
-        img_shape=net_shape,
+        img_shape=(300,300),
         num_classes=21,
         no_annotation_label=21,
         feat_layers=['block4', 'block7', 'block8', 'block9', 'block10', 'block11'],
@@ -102,37 +103,35 @@ default_params = SSDParams(
         prior_scaling=[0.1, 0.1, 0.2, 0.2]
         )
 
-#default_params = SSDParams(
-#        img_shape=net_shape,
-#        num_classes=21,
-#        no_annotation_label=21,
-#        feat_layers=['block4', 'block7', 'block8', 'block9'],
-#        feat_shapes=[ (10, 10), (5, 5), (3, 3), (1, 1)],
-#        anchor_size_bounds=[0.15, 0.90],
-#        # anchor_size_bounds=[0.20, 0.90],
-#        anchor_sizes=[(21., 45.),
-#                      (45., 99.),
-#                      (99., 153.),
-#                      (153., 207.),
-#                      (207., 261.),
-#                      (261., 315.)],
+fovea_params = SSDParams(
+        img_shape=(75,75),
+        num_classes=21,
+        no_annotation_label=21,
+        feat_layers=['block4', 'block7', 'block8', 'block9'],
+        feat_shapes=[ (10, 10), (5, 5), (3, 3), (1, 1)],
+        anchor_size_bounds=[0.15, 0.90],
+        # anchor_size_bounds=[0.20, 0.90],
+        anchor_sizes=[(21., 45.),
+                      (45., 99.),
+                      (99., 153.),
+                      (153., 207.)],
         # anchor_sizes=[(30., 60.),
         #               (60., 111.),
         #               (111., 162.),
         #               (162., 213.),
         #               (213., 264.),
         #               (264., 315.)],
-#        anchor_ratios=[[2, .5],
-#                       [2, .5, 3, 1./3],
-#                       [2, .5, 3, 1./3],
-#                       [2, .5, 3, 1./3],
-#                       [2, .5],
-#                       [2, .5]],
-#        anchor_steps=[8, 16, 32, 64, 100, 300],
-#        anchor_offset=0.5,
-#        normalizations=[20, -1, -1, -1, -1, -1],
-#        prior_scaling=[0.1, 0.1, 0.2, 0.2]
-#        )
+        anchor_ratios=[[2, .5],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5, 3, 1./3],
+                       [2, .5],
+                       [2, .5]],
+        anchor_steps=[8, 16, 32, 64],
+        anchor_offset=0.5,
+        normalizations=[20, -1, -1, -1, -1, -1],
+        prior_scaling=[0.1, 0.1, 0.2, 0.2]
+        )
 
 
 
@@ -159,7 +158,9 @@ saver = tf.train.Saver()
 saver.restore(isess, ckpt_filename)
 
 # SSD default anchor boxes.
-ssd_anchors = ssd_net.anchors(net_shape)
+ssd_anchors1 = ssd_net.anchors((300,300))
+ssd_anchors2 = ssd_vgg_300.ssd_anchors_all_layers((75,75),fovea_params.feat_shapes,fovea_params.anchor_sizes,fovea_params.anchor_ratios,fovea_params.anchor_steps,offset=0.5,dtype=np.float32)
+ 
 
 
 # ## Post-processing pipeline
@@ -180,7 +181,12 @@ def process_image(img, select_threshold=0.5, nms_threshold=.45, net_shape=(300, 
     
     rimg, rpredictions, rlocalisations, rbbox_img = isess.run([image_4d, predictions, localisations, bbox_img],
                                                               feed_dict={img_input: img, large:islarge})
-    print("Finished session")
+    if not islarge:
+      rpredictions = rpredictions[0:4]
+      rlocalisations = rlocalisations[0:4]
+      ssd_anchors = ssd_anchors2
+    else:
+      ssd_anchors = ssd_anchors1
     networktime = time.time()-starttime
     # Get classes and bboxes from the net outputs.
     rclasses, rscores, rbboxes = np_methods.ssd_bboxes_select(
@@ -203,38 +209,52 @@ image_names = sorted(os.listdir(path))
 
 process_time = np.zeros((13,1))
 network_time = np.zeros((13,1))
-for lvar in range(1):
+process_fovea_time = np.zeros((13,1))
+for lvar in range(13):
   img = mpimg.imread(path + image_names[lvar])
   start_time = time.time()
   rclasses, rscores, rbboxes, network_time[lvar] =  process_image(img,0.5,0.45,(300,300),True)
-
-    
+  #print(rbboxes) 
   #plt.imshow(img)
   #plt.show()
   end_time = time.time()
   process_time[lvar] = end_time-start_time
   #visualization.bboxes_draw_on_img(img, rclasses, rscores, rbboxes, visualization.colors_plasma)
   #visualization.plt_bboxes(img, rclasses, rscores, rbboxes)
-  visualization.bboxes_draw_on_img(img, rclasses, rscores, rbboxes, visualization.colors_tableau)
-  visualization.plt_bboxes(img, rclasses, rscores, rbboxes)
+  #rimg = np.array(img) 
+  #visualization.bboxes_draw_on_img(rimg, rclasses, rscores, rbboxes, visualization.colors_tableau)
+  #visualization.plt_bboxes(rimg, rclasses, rscores, rbboxes)
   #print(rbboxes)
   #rbboxes =np.array([[0,1,0,1],[0.46,0.14,0.74,0.56]])
-  y1 = int(rbboxes[-1,0]*0.75*img.shape[0])
-  x1 = int(rbboxes[-1,1]*0.75*img.shape[1])
-  y2 = min(int(rbboxes[-1,2]*1.25*img.shape[0]),img.shape[0])
-  x2 = min(int(rbboxes[-1,3]*1.25*img.shape[1]),img.shape[1])
+  if rbboxes.shape[0]>=1:
+    start_time = time.time()
+    y1 = int(rbboxes[-1,0]*0.75*img.shape[0])
+    x1 = int(rbboxes[-1,1]*0.75*img.shape[1])
+    y2 = min(int(rbboxes[-1,2]*1.25*img.shape[0]),img.shape[0])
+    x2 = min(int(rbboxes[-1,3]*1.25*img.shape[1]),img.shape[1])
 
-  fovea = img[y1:y2,x1:x2,:]
-  #rclasses, rscores, rbboxes, network_time[lvar] =  process_image(fovea,0.5,0.45,(75,75),False) 
-  #visualization.bboxes_draw_on_img(fovea, rclasses, rscores, rbboxes, visualization.colors_tableau)
-  #visualization.plt_bboxes(fovea, rclasses, rscores, rbboxes)
+    fovea = img[y1:y2,x1:x2,:]
+    #plt.imshow(fovea)
+    #plt.show() 
+    rclasses, rscores, rbboxes, network_time[lvar] =  process_image(fovea,0.4,0.45,(75,75),False) 
+    end_time = time.time()
+    process_fovea_time[lvar] = end_time-start_time
+    #plt.figure()
+    #print(rbboxes)
+    #print(rclasses)
+    #print(rscores)
+    #visualization.bboxes_draw_on_img(fovea, rclasses, rscores, rbboxes, visualization.colors_tableau)
+    #visualization.plt_bboxes(fovea, rclasses, rscores, rbboxes)
 
   #plt.imshow(fovea)
   #plt.show()
  
   
-#print(process_time)
-#print(np.mean(process_time[1:]))
+print(process_time)
+print(np.mean(process_time[1:]))
+print(process_fovea_time)
+print(np.mean(process_fovea_time[1:]))
+
 #print(np.mean(network_time[1:]))
 
 

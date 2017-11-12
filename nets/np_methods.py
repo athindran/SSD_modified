@@ -29,14 +29,17 @@ def ssd_bboxes_decode(feat_localizations,
     Return:
       numpy array Nx4: ymin, xmin, ymax, xmax
     """
+    
     # Reshape for easier broadcasting.
     l_shape = feat_localizations.shape
+    #print(l_shape)
     feat_localizations = np.reshape(feat_localizations,
                                     (-1, l_shape[-2], l_shape[-1]))
     yref, xref, href, wref = anchor_bboxes
     xref = np.reshape(xref, [-1, 1])
     yref = np.reshape(yref, [-1, 1])
-
+    #print(wref.shape)
+    #print(xref.shape)
     # Compute center, height and width
     cx = feat_localizations[:, :, 0] * wref * prior_scaling[0] + xref
     cy = feat_localizations[:, :, 1] * href * prior_scaling[1] + yref
