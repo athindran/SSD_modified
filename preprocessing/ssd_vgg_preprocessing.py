@@ -300,7 +300,7 @@ def preprocess_for_train(image, labels, bboxes,
 def preprocess_for_eval(image, labels, bboxes,
                         out_shape=EVAL_SIZE, data_format='NHWC',
                         difficults=None, resize=Resize.WARP_RESIZE,
-                        scope='ssd_preprocessing_train',large=True):
+                        scope='ssd_preprocessing_train',large=True,medium=True):
     """Preprocess an image for evaluation.
 
     Args:
@@ -349,7 +349,7 @@ def preprocess_for_eval(image, labels, bboxes,
                 image, bboxes, out_shape[0], out_shape[1])
         elif resize == Resize.WARP_RESIZE:
             # Warp resize of the image.
-            image = tf.cond(large,lambda: tf_image.resize_image(image, (300,300),method=tf.image.ResizeMethod.BILINEAR,align_corners=False),lambda: tf_image.resize_image(image, (75,75),method=tf.image.ResizeMethod.BILINEAR,align_corners=False))
+            image = tf.cond(large,lambda: tf_image.resize_image(image, (300,300),method=tf.image.ResizeMethod.BILINEAR,align_corners=False),lambda: tf.cond(medium,lambda: tf_image.resize_image(image, (150,150),method=tf.image.ResizeMethod.BILINEAR,align_corners=False),lambda: tf_image.resize_image(image, (75,75),method=tf.image.ResizeMethod.BILINEAR,align_corners=False)))
 
         # Split back bounding boxes.
         bbox_img = bboxes[0]
