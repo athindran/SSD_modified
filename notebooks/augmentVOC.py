@@ -111,7 +111,8 @@ def modify_image(image_file,annotation_file,f=0.2):
     objects = xml["annotation"]["object"]
 
 
-    (_,filename) = os.path.split(annotation_file)
+    (annoPath,filename) = os.path.split(annotation_file)
+    (imgPath,filename_) = os.path.split(image_file)
     (filename,_) = filename.split(".")
     out_filename = str(int(filename)+100000)
 
@@ -129,10 +130,13 @@ def modify_image(image_file,annotation_file,f=0.2):
         slices.append(img[ymin:ymax,xmin:xmax,:])
         borders.append({"xmin":xmin,"xmax":xmax,"ymin":ymin,"ymax":ymax})
     (img_out,objects_out) = makeMosaic(img,slices,objects,borders)
-
-
-
-
+    out_imgpath = imgPath + out_filename + ".jpg"
+    out_annopath= annoPath + out_filename + ".xml"
+    cv2.imwrite(out_imgpath, img_out)
+    xml_out["annotation"]["object"] = objects_out
+    str_xmlout = xmltodict.unparse(xml_out)
+    with open(out_annopath,"w") as f:
+        f.write(str_xmlout)
 
     return 0
 
