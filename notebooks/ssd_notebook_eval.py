@@ -286,7 +286,7 @@ for classes in range(12):
 start_time = time.time()
 totimages = 0;
 total_process_time = 0;
-for video in relevantvideos[2:10]:
+for video in relevantvideos[2:]:
   image_names = os.listdir(path+video)
   image_names.sort(key=lambda f: int(filter(str.isdigit, f)))
   #print(image_names)
